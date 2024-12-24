@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gamedev Phaser Workshop - lesson 16: Randomizing gameplay</title>
+    <style>
+        * {
+            padding: 0;
+            margin: 0;
+        }
+
+        /* 页面整体样式 */
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f4f4f9;
+            padding: 20px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        /* 游戏区域容器 */
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            width: 100%;
+            flex-grow: 1;
+            /* 使游戏区域可以填满剩余的空间 */
+        }
+
+        /* 用户输入框和按钮 */
+        input,
+        button {
+            font-size: 14px;
+            padding: 8px 15px;
+            margin: 10px;
+            border: 2px solid #0095DD;
+            border-radius: 10px;
+            width: 220px;
+            max-width: 80%;
+            box-sizing: border-box;
+        }
+
+        /* 按钮样式 */
+        button {
+            background-color: #0095DD;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #007bb5;
+        }
+
+        /* 画布样式 */
+        canvas {
+            width: 100%;
+            max-width: 800px;
+            height: auto;
+            border: 2px solid #0095DD;
+            margin: 20px auto;
+            display: block;
+        }
+
+        /* 游戏区得分与生命文本 */
+        .text-style {
+            font-size: 24px;
+            color: #0095DD;
+            font-weight: bold;
+        }
+
+        /* 当生命丢失时的文本 */
+        #life-lost-text {
+            font-size: 30px;
+            color: red;
+            font-weight: bold;
+            display: none;
+        }
+
+        /* 得分历史样式 */
+        #scoreboard {
+            margin-top: 20px;
+            width: 100%;
+            max-width: 800px;
+            border-collapse: collapse;
+            margin: 20px auto;
+            max-height: 200px;
+            /* 限制最大高度 */
+            overflow-y: auto;
+            /* 使内容可滚动 */
+            text-align: center;
+        }
+
+        /* 标题样式 */
+        #scoreboard h2 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: #0095DD;
+        }
+
+        #scoreboard th,
+        #scoreboard td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: center;
+            font-size: 16px;
+        }
+
+        /* 设置用户名、得分和日期的文本颜色为蓝色 */
+        #scoreboard th,
+        #scoreboard td {
+            color: #0095DD;
+        }
+
+        /* 表格内容文本设置为黑色 */
+        #scoreboard td {
+            color: #000000;
+        }
+    </style>
+
+    <script src="{{ url_for('static', filename='js/phaser.min.js') }}"></script>
+</head>
+
+<body>
+    <!-- 输入玩家名称 -->
+    <div id="game-container">
+        <label for="username" style="font-size: 16px; margin-bottom: 10px;">Enter your name:</label>
+        <input type="text" id="username" name="username" placeholder="Enter Name" />
+        <button id="start-game" onclick="startGame()">Start Game</button>
+    </div>
+
+    <!-- 游戏区 -->
+    <div id="game-area">
+        <script>
+            var game = new Phaser.Game(window.innerWidth * 0.8, window.innerHeight * 0.6, Phaser.AUTO, null, {
+                preload: preload,
+                create: create,
+                update: update
+            });
+
+            var ball, paddle, bricks, score = 0, lives = 3, username = null;
+            var scoreText, livesText, lifeLostText, startButton;
+            var brickInfo = {
+                width: 80,
+                height: 35,
+                count: { row: 7, col: 3 },
+                offset: { top: 50, left: 60 },
+                padding: 10
+            };
+
+            function preload() {
+                game.load.image('paddle', 'static/img/img/paddle.png');
+                game.load.image('brick', 'static/img/img/brick.png');
+                game.load.spritesheet('ball', 'static/img/img/wobble.png', 20, 20);
+                game.load.spritesheet('button', 'static/img/img/button.png', 120, 40);
+            }
+
+            function create() {
+                game.physics.startSystem(Phaser.Physics.ARCADE);
+                game.physics.arcade.checkCollision.down = false;
+
+                ball = game.add.sprite(game.world.width * 0.5, game.world.height - 25, 'ball');
+                ball.animations.add('wobble', [0, 1, 0, 2, 0, 1, 0, 2, 0], 24);
+                ball.anchor.set(0.5);
+                game.physics.enable(ball, Phaser.Physics.ARCADE);
+                ball.body.collideWorldBounds = true;
+                ball.body.bounce.set(1);
+                ball.checkWorldBounds = true;
+                ball.events.onOutOfBounds.add(ballLeaveScreen, this);
+
+                paddle = game.add.sprite(game.world.width * 0.5, game.world.height - 5, 'paddle');
+                paddle.anchor.set(0.5, 1);
+                game.physics.enable(paddle, Phaser.Physics.ARCADE);
+                paddle.body.immovable = true;
+
+                initBricks();
+
+                var textStyle = { font: '24px Arial', fill: '#0095DD' };
+                scoreText = game.add.text(5, 5, 'Points: 0', textStyle);
+                livesText = game.add.text(game.world.width - 5, 5, 'Lives: ' + lives, textStyle);
+                livesText.anchor.set(1, 0);
+
+                lifeLostText = game.add.text(game.world.width * 0.5, game.world.height * 0.5, 'Life lost, tap to continue', textStyle);
+                lifeLostText.anchor.set(0.5);
+                lifeLostText.visible = false;
+
+                startButton = game.add.button(game.world.width * 0.5, game.world.height * 0.5, 'button', startGame, this, 1, 0, 2);
+                startButton.anchor.set(0.5);
+            }
+
+            function initBricks() {
+                bricks = game.add.group();
+                var brickWidth = game.world.width / brickInfo.count.row - brickInfo.padding;
+                var brickHeight = game.world.height / 10;
+
+                for (var c = 0; c < brickInfo.count.col; c++) {
+                    for (var r = 0; r < brickInfo.count.row; r++) {
+                        var brickX = (r * (brickWidth + brickInfo.padding)) + brickInfo.offset.left;
+                        var brickY = (c * (brickHeight + brickInfo.padding)) + brickInfo.offset.top;
+                        var newBrick = game.add.sprite(brickX, brickY, 'brick');
+                        game.physics.enable(newBrick, Phaser.Physics.ARCADE);
+                        newBrick.body.immovable = true;
+                        newBrick.anchor.set(0.5);
+                        bricks.add(newBrick);
+                    }
+                }
+            }
+
+            function update() {
+                game.physics.arcade.collide(ball, paddle, ballHitPaddle);
+                game.physics.arcade.collide(ball, bricks, ballHitBrick);
+
+                if (username) {
+                    var mouseX = game.input.x;
+                    var paddleWidth = paddle.width;
+                    var sensitivity = 2;
+                    paddle.x = mouseX;
+
+                    if (paddle.x < paddleWidth / 2) {
+                        paddle.x = paddleWidth / 2;
+                    } else if (paddle.x > game.world.width - paddleWidth / 2) {
+                        paddle.x = game.world.width - paddleWidth / 2;
+                    }
+                }
+            }
+
+            function ballHitBrick(ball, brick) {
+                brick.kill();
+                score += 10;
+                scoreText.setText('Points: ' + score);
+                if (score === 210) {
+                    alert('You won the game, congratulations!');
+                    saveScore(score);
+                }
+            }
+
+            function saveScore(score) {
+                var data = { username: username, score: score };
+                fetch('/save_score', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                }).then(response => response.json())
+                    .then(data => console.log('Score saved:', data))
+                    .catch(error => console.error('Error:', error));
+            }
+
+            function ballHitPaddle(ball, paddle) {
+                ball.body.velocity.x = -1 * 5 * (paddle.x - ball.x);
+            }
+
+            function startGame() {
+                var input = document.getElementById('username').value;
+                if (input === '') {
+                    alert('Please enter your name!');
+                    return;
+                }
+                username = input;
+                startButton.destroy();
+                ball.body.velocity.set(150, -150);
+            }
+
+            function ballLeaveScreen() {
+                lives--;
+                if (lives > 0) {
+                    livesText.setText('Lives: ' + lives);
+                    lifeLostText.visible = true;
+                    ball.reset(game.world.width * 0.5, game.world.height - 25);
+                    paddle.reset(game.world.width * 0.5, game.world.height - 5);
+                    game.input.onDown.addOnce(function () {
+                        lifeLostText.visible = false;
+                        ball.body.velocity.set(150, -150);
+                    }, this);
+                } else {
+                    lifeLostText.setText('Game Over! Your Score: ' + score);
+                    lifeLostText.visible = true;
+                    saveScore(score);
+                }
+            }
+        </script>
+    </div>
+
+    <!-- 显示得分历史，移到页面区域后 -->
+    <div id="scoreboard">
+        <h2>Top Scores</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Score</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for score in scores %}
+                <tr>
+                    <td>{{ score[0] }}</td> <!-- Username -->
+                    <td>{{ score[1] }}</td> <!-- Score -->
+                    <td>{{ score[2] }}</td> <!-- Date -->
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+
+</html>

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scoreboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            text-align: center;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #0095DD;
+            /* 设置标题为蓝色 */
+        }
+
+        table {
+            margin: 0 auto;
+            width: 50%;
+            border-collapse: collapse;
+            text-align: center;
+        }
+
+        th,
+        td {
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #4CAF50;
+            color: #0095DD;
+            /* 设置表头文字为蓝色 */
+        }
+
+        td {
+            color: #000000;
+            /* 设置表格内容为黑色 */
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Game Scoreboard</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>Username</th>
+                <th>Score</th>
+                <th>Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for score in scores %}
+            <tr>
+                <td>{{ score[0] }}</td> <!-- Username -->
+                <td>{{ score[1] }}</td> <!-- Score -->
+                <td>{{ score[2] }}</td> <!-- Date -->
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+
+</html>
